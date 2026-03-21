@@ -484,6 +484,13 @@ body::before {
                 <div class="mode-icon">💀</div><div class="mode-info"><h3>錯誤程式除錯 <span class="badge-new">NEW</span></h3><p>修復整段會報錯的或是邏輯瑡疵的程式碼</p></div>
             </a>
         </div>
+
+        <div class="stage-title" style="color:#ef4444 !important;border-color:rgba(239,68,68,.3) !important;"><span style="background:rgba(239,68,68,.25);">模擬考</span> 實戰模擬</div>
+        <div class="mode-grid">
+            <a href="模擬考.html" class="mode-item" style="border-left:3px solid #ef4444;">
+                <div class="mode-icon">🎯</div><div class="mode-info"><h3 style="color:#ef4444;">模擬考試 <span class="badge-new" style="background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.3);">125 分鐘</span></h3><p>依檢定規則隨機抽題第一套：Q1~Q5 抽 3 題 + T01~T03迴圈抽 1 種，第二套：306 ~ 308 抽 1 題</p></div>
+            </a>
+        </div>
     </div>
 </div>
 <!-- Tab 2: Map -->
@@ -571,9 +578,10 @@ ALL_MODES.forEach(m => {
 // ── Intercept large mode boxes ──
 document.querySelectorAll('.mode-item').forEach(item => {
     item.addEventListener('click', (e) => {
-        e.preventDefault();
         let url = new URL(item.href, window.location.href);
         let m = url.searchParams.get('mode');
+        if (!m) return; // 無 mode 參數的連結（如模擬考）直接導航
+        e.preventDefault();
         if (m) {
             // Update active box style
             document.querySelectorAll('.mode-item').forEach(c => c.classList.remove('active'));
