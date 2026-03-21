@@ -275,7 +275,7 @@ body::after{
   .tstat-val{font-size:1.1rem}
 }
 </style>
-<link rel="stylesheet" href="../css/common.css?v=2">
+<link rel="stylesheet" href="../css/common.css?v=3">
 </head>
 <body>
 
@@ -416,7 +416,7 @@ body::after{
 </div>
 
 <script src="../js/users.js"></script>
-<script type="module" src="../js/api.js?v=8"></script>
+<script type="module" src="../js/api.js?v=9"></script>
 <script src="../js/quiz_data.js"></script>
 <script>
 const urlParams = new URLSearchParams(window.location.search);
@@ -498,18 +498,55 @@ function playAllClear() {
 // ═══════════════════════════════════════════
 //  DATA
 // ═══════════════════════════════════════════
-const KEYWORDS = [
-  { text:'StreamReader',      zh:'讀取文字檔的工具類別' },
-  { text:'ReadLine()',         zh:'讀取檔案的一行文字' },
-  { text:'Dim',                zh:'宣告（定義）變數' },
-  { text:'As String',          zh:'指定變數型別為字串' },
-  { text:'As Integer',         zh:'指定變數型別為整數' },
-  { text:'As New',             zh:'宣告並建立新物件' },
-  { text:'Exit For',           zh:'立即跳出 For 迴圈' },
-  { text:'End If',             zh:'結束 If 條件區塊' },
-  { text:'RichTextBox1.Text',  zh:'文字方塊的文字內容屬性' },
-  { text:'vbCrLf',             zh:'換行符號常數' },
-];
+// 從 generateSteps 動態提取關鍵字（根據 qID + tID 變化）
+const KEYWORDS = (function() {
+  const steps = generateSteps(qID, tID);
+  const seen = new Set();
+  const keywords = [];
+
+  // 定義要提取的關鍵字片段及說明
+  const KEYWORD_PATTERNS = [
+    { match: 'StreamReader',     text: 'StreamReader',      zh: '讀取文字檔的工具類別' },
+    { match: 'ReadLine()',       text: 'ReadLine()',         zh: '讀取檔案的一行文字' },
+    { match: 'As New',           text: 'As New',             zh: '宣告並建立新物件' },
+    { match: 'As String',        text: 'As String',          zh: '指定變數型別為字串' },
+    { match: 'As Integer',       text: 'As Integer',         zh: '指定變數型別為整數' },
+    { match: 'Dim ',             text: 'Dim',                zh: '宣告（定義）變數' },
+    { match: 'Exit For',         text: 'Exit For',           zh: '立即跳出 For 迴圈' },
+    { match: 'Exit Do',          text: 'Exit Do',            zh: '立即跳出 Do 迴圈' },
+    { match: 'Next ',            text: 'Next i',             zh: '迴圈遞增到下一個 i' },
+    { match: 'Do While',         text: 'Do While',           zh: 'Do While 前測試迴圈' },
+    { match: 'Loop While',       text: 'Loop While',         zh: 'Loop While 後測試迴圈條件' },
+    { match: 'Loop Until',       text: 'Loop Until',         zh: 'Loop Until 後測試迴圈條件' },
+    { match: /^Do$/,             text: 'Do',                 zh: 'Do 迴圈開頭' },
+    { match: /^Loop$/,           text: 'Loop',               zh: '迴圈結尾 Loop' },
+    { match: 'For ',             text: 'For...Next',         zh: 'For 計數迴圈' },
+    { match: 'End If',           text: 'End If',             zh: '結束 If 條件區塊' },
+    { match: 'End Sub',          text: 'End Sub',            zh: '結束副程式' },
+    { match: 'i += 1',           text: 'i += 1',             zh: '把計數器 i 加 1' },
+    { match: 'RichTextBox1.Text',text: 'RichTextBox1.Text',  zh: '文字方塊的文字內容屬性' },
+    { match: 'vbCrLf',           text: 'vbCrLf',             zh: '換行符號常數' },
+    { match: 'Private Sub',      text: 'Private Sub',        zh: '宣告私有副程式' },
+    { match: 'If ',              text: 'If...Then',          zh: '條件判斷式' },
+    { match: '<>',               text: '<>',                 zh: '不等於運算子' },
+    { match: '\\\\',             text: '\\',                 zh: '整數除法運算子' },
+  ];
+
+  const allCode = steps.map(s => s.code.trim()).join('\n');
+
+  KEYWORD_PATTERNS.forEach(kw => {
+    const isRegex = kw.match instanceof RegExp;
+    const found = isRegex
+      ? steps.some(s => isRegex && kw.match.test(s.code.trim()))
+      : allCode.includes(kw.match);
+    if (found && !seen.has(kw.text)) {
+      seen.add(kw.text);
+      keywords.push({ text: kw.text, zh: kw.zh });
+    }
+  });
+
+  return keywords;
+})();
 
 let currentIndent = 0;
 const LINES = generateSteps(qID, tID).map((step, idx) => {

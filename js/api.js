@@ -70,46 +70,127 @@ function cacheAppend(key, newRecord) {
     } catch (e) {}
 }
 
+// ── 同步機制 ──
+
+/**
+ * 登入時：嘗試上傳離線成績（不清除快取）
+ */
+window.syncOnLogin = async function (userName) {
+    if (!db || !userName) return;
+    await window.syncOfflineScores(userName);
+};
+
+/**
+ * 登出時：清除該使用者的快取
+ */
+window.syncOnLogout = function (userName) {
+    if (userName) localStorage.removeItem(`fb_cache_${userName}`);
+    localStorage.removeItem('fb_cache_overall_ranking');
+    localStorage.removeItem('fb_cache_dashboard_teacher');
+};
+
+/**
+ * 回到 map 頁面時：背景同步（不清除快取，不影響顯示）
+ * 先用快取顯示，背景從 Firestore 撈取後合併更新
+ */
+window.syncOnMapLoad = async function (userName) {
+    if (!db || !userName) return;
+    // 先嘗試上傳離線成績
+    await window.syncOfflineScores(userName);
+    // 背景從 Firestore 撈取最新，與快取合併
+    try {
+        const q = query(collection(db, "scores"), where("userName", "==", userName));
+        const snapshot = await getDocs(q);
+        const fbResults = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            data.id = doc.id;
+            data.gameMode = normalizeMode(data.gameMode);
+            fbResults.push(data);
+        });
+        // 合併：以快取為基礎，補上 Firestore 中有但快取沒有的
+        const cacheKey = `fb_cache_${userName}`;
+        const cached = cacheGet(cacheKey) || [];
+        const cachedIds = new Set(cached.filter(r => r.id).map(r => r.id));
+        const cachedKeys = new Set(cached.map(r => `${r.qID}_${r.gameMode}_${r.timestamp}`));
+        let added = 0;
+        fbResults.forEach(r => {
+            if (r.id && !cachedIds.has(r.id)) {
+                const key = `${r.qID}_${r.gameMode}_${r.timestamp}`;
+                if (!cachedKeys.has(key)) {
+                    cached.push(r);
+                    added++;
+                }
+            }
+        });
+        if (added > 0) cacheSet(cacheKey, cached);
+        console.log(`✅ 地圖背景同步: Firestore ${fbResults.length} 筆, 新增 ${added} 筆`);
+    } catch (e) {
+        console.error("背景同步失敗:", e);
+    }
+};
+
+/**
+ * 離線成績重試：把 local_scores 中未上傳的補傳到 Firestore
+ */
+window.syncOfflineScores = async function (userName) {
+    if (!db) return;
+    let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
+    if (localScores.length === 0) return;
+    const toUpload = userName ? localScores.filter(s => s.userName === userName) : localScores;
+    const remaining = userName ? localScores.filter(s => s.userName !== userName) : [];
+    let uploaded = 0;
+    for (const record of toUpload) {
+        try { await addDoc(collection(db, "scores"), record); uploaded++; }
+        catch (e) { remaining.push(record); }
+    }
+    localStorage.setItem('local_scores', JSON.stringify(remaining));
+    if (uploaded > 0) console.log(`✅ 離線成績補傳: ${uploaded} 筆`);
+};
+
 /**
  * 儲存使用者的過關成績到 Firestore
+ * 策略：先寫入本地快取（樂觀更新），再嘗試寫 Firestore
+ *        如果 Firestore 失敗，同時存入 local_scores 備份
  */
 window.saveScore = async function (className, userName, qID, gameMode, timeSpent, status = "PASS", stars = 3) {
+    const newRecord = {
+        className: className || "未分班",
+        userName: userName || "訪客",
+        qID: qID || "Q1",
+        gameMode: gameMode || "未知模式",
+        timeSpent: Number(timeSpent) || 0,
+        status: status || "PASS",
+        stars: Number(stars) || 1,
+        timestamp: new Date().toISOString()
+    };
+
+    // 1. 永遠先寫入本地快取（樂觀更新，確保星星立即可見）
+    const cacheKey = `fb_cache_${newRecord.userName}`;
+    cacheAppend(cacheKey, newRecord);
+    localStorage.removeItem('fb_cache_overall_ranking');
+    localStorage.removeItem('fb_cache_dashboard_teacher');
+
+    // 2. 嘗試寫入 Firestore
     if (!db) {
+        // 無 Firestore 連線，存到 local_scores 備份
         let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
-        localScores.push({ className, userName, qID, gameMode, timeSpent, status, stars, timestamp: new Date().toISOString() });
+        localScores.push(newRecord);
         localStorage.setItem('local_scores', JSON.stringify(localScores));
         return { success: true, localOnly: true };
     }
 
     try {
-        // Sanitizing all inputs to prevent Firebase "Unsupported field value: undefined" synchronous crashes
-        const newRecord = {
-            className: className || "未分班", 
-            userName: userName || "訪客", 
-            qID: qID || "Q1", 
-            gameMode: gameMode || "未知模式", 
-            timeSpent: Number(timeSpent) || 0, 
-            status: status || "PASS", 
-            stars: Number(stars) || 1,
-            timestamp: new Date().toISOString()
-        };
-
-        // Optimistic UI Update: 先同步更新個人快取，確保就算離線斷網，玩家回到地圖也能馬上看到星星！
-        const cacheKey = `fb_cache_${newRecord.userName}`;
-        cacheAppend(cacheKey, newRecord);
-
-        // 讓排行榜／儀表板快取失效，下次重新撈
-        localStorage.removeItem('fb_cache_overall_ranking');
-        localStorage.removeItem('fb_cache_dashboard_teacher');
-
-        // 接著才正式送出 DB。如果網路在此刻卡住 pends，至少前端遊戲已經顯示星星了！
         const docRef = await addDoc(collection(db, "scores"), newRecord);
         newRecord.id = docRef.id;
-
         return { success: true, id: docRef.id };
     } catch (e) {
-        console.error("寫入 Firestore 錯誤:", e);
-        return { success: false, error: e };
+        console.error("寫入 Firestore 錯誤, 存入離線備份:", e);
+        // Firestore 失敗，存到 local_scores 備份，下次登入時重試
+        let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
+        localScores.push(newRecord);
+        localStorage.setItem('local_scores', JSON.stringify(localScores));
+        return { success: false, error: e, backedUp: true };
     }
 };
 
@@ -196,6 +277,21 @@ function normalizeMode(mode) {
  * ✅ 改動：改用 localStorage 快取，TTL 30 分鐘
  */
 window.getScoresForUser = async function (userName) {
+    // 合併 local_scores 中尚未上傳的紀錄
+    function mergeLocalScores(results, userName) {
+        const localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
+        const pending = localScores.filter(s => s.userName === userName);
+        if (pending.length > 0) {
+            const existingKeys = new Set(results.map(r => `${r.qID}_${r.gameMode}_${r.timestamp}`));
+            pending.forEach(s => {
+                s.gameMode = normalizeMode(s.gameMode);
+                const key = `${s.qID}_${s.gameMode}_${s.timestamp}`;
+                if (!existingKeys.has(key)) results.push(s);
+            });
+        }
+        return results;
+    }
+
     if (!db) {
         let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
         return localScores.filter(s => s.userName === userName).map(s => {
@@ -206,7 +302,7 @@ window.getScoresForUser = async function (userName) {
 
     const cacheKey = `fb_cache_${userName}`;
     const cached = cacheGet(cacheKey);
-    if (cached) return cached;
+    if (cached) return mergeLocalScores(cached, userName);
 
     try {
         const q = query(
@@ -223,10 +319,12 @@ window.getScoresForUser = async function (userName) {
         });
 
         cacheSet(cacheKey, results);
-        return results;
+        return mergeLocalScores(results, userName);
     } catch (e) {
         console.error("載入個人紀錄失敗:", e);
-        return [];
+        // 即使 Firestore 失敗，也返回快取 + local_scores
+        const fallback = cacheGet(cacheKey) || [];
+        return mergeLocalScores(fallback, userName);
     }
 };
 

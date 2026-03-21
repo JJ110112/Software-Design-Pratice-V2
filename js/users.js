@@ -49,10 +49,19 @@ function loginUser(className, studentNo, studentName) {
         loginTime: new Date().toISOString()
     });
     localStorage.setItem('sw_quiz_user', userStr);
+    // 登入時觸發雲端同步
+    if (typeof window.syncOnLogin === 'function') {
+        window.syncOnLogin(studentName);
+    }
 }
 
 // 工具函式：登出
 function logoutUser() {
+    const user = getCurrentUser();
+    // 登出時清除快取
+    if (user && typeof window.syncOnLogout === 'function') {
+        window.syncOnLogout(user.name);
+    }
     localStorage.removeItem('sw_quiz_user');
 }
 
