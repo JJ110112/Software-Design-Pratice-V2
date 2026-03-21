@@ -1,0 +1,30 @@
+{
+  "name": "software-design-pratice-v1.01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:smoke": "npx playwright test all-pages-smoke",
+    "test:exam": "npx playwright test mock-exam",
+    "test:headed": "npx playwright test --headed",
+    "test:ui": "npx playwright test --ui",
+    "serve": "npx serve -l 5500"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JJ110112/Software-Design-Pratice-V1.01.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/JJ110112/Software-Design-Pratice-V1.01/issues"
+  },
+  "homepage": "https://github.com/JJ110112/Software-Design-Pratice-V1.01#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "serve": "^14.2.6"
+  }
+}
