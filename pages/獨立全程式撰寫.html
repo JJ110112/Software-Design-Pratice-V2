@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>術科練習 ── 第五階段：獨立全程式撰寫</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -162,7 +163,7 @@ textarea {
       <div class="ide-dots">
         <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
       </div>
-      <div class="ide-title">Q1_Palindrome.vb</div>
+      <div class="ide-title" id="ide-title">Q1_Palindrome.vb</div>
       <div style="width: 46px;"></div>
     </div>
     
@@ -171,8 +172,7 @@ textarea {
         <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span>
       </div>
       <div class="editing-area">
-        <textarea id="editor" spellcheck="false" placeholder="' 在此輸入完整的程式碼...
-' 提示：從 Private Sub Q1() 開始"></textarea>
+        <textarea id="editor" spellcheck="false" placeholder="' 在此輸入完整的程式碼 ..."></textarea>
       </div>
     </div>
 
@@ -198,19 +198,13 @@ textarea {
 
 <div id="win-overlay">
   <div class="win-modal">
-    <span class="win-icon">💜</span>
-    <h2>精英級達成！</h2>
-    <p>你已經具備獨立開發 Q1 模組的能力。</p>
-    <div class="stat-summary">
-      準確度達標：<b>100%</b><br>
-      耗時：<b id="win-time">0</b> 秒<br>
-      提示使用次數：<b id="win-hints">0</b> 次
-    </div>
-    <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:20px; flex-wrap:wrap;">
-        <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:20px; flex-wrap:wrap;">
-        <button class="btn btn-primary" id="btn-again" style="margin: 0 auto;">再次磨練</button>
+    <span class="win-icon">💎</span>
+    <h2>完成開發挑戰！</h2>
+    <p>恭喜你！已經能獨立點亮 <span id="win-mission-title">完整的程式片段</span>。</p>
+    <div class="stat-summary" id="win-score-box"></div>
+    <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+        <button class="btn btn-primary" id="btn-again">再挑戰一次</button>
         <button class="btn btn-primary" id="btn-next-level" style="display:none; background: linear-gradient(90deg, #4ade80, #10b981); color: #fff; border: none; white-space: nowrap;">⏭️ 下一關</button>
-    </div>
     </div>
   </div>
 </div>
@@ -238,8 +232,12 @@ window.addEventListener('load', () => {
         if (qID === 'SETUP') {
              document.querySelector('h1').innerHTML = `Form1_Load 練習<br><em>通用考生資訊</em>`;
              labelText = 'Form1_Load (通用考生資訊)';
+             document.getElementById('ide-title').textContent = 'Form1_Load.vb';
+             editor.placeholder = "' 在此輸入完整的程式碼 ...\n' 提示：從 RichTextBox1.Text &= ... 開始";
         } else {
              document.querySelector('h1').innerHTML = `${qID} ${QUIZ_DATA[qID].title}<br><em>獨立開發挑戰 (${tID})</em>`;
+             document.getElementById('ide-title').textContent = `${qID}_${QUIZ_DATA[qID].title}.vb`;
+             editor.placeholder = "' 在此輸入完整的程式碼 ...\n' 提示：從註解標頭 '*******... 開始";
         }
         document.getElementById('mode-pill').textContent = labelText;
         if(document.getElementById('topic-badge')) document.getElementById('topic-badge').textContent = `${qID} · ${QUIZ_DATA[qID].title}`;
@@ -330,8 +328,30 @@ function validate() {
 function win() {
   clearInterval(timer);
   playWin();
-  document.getElementById('win-time').textContent = seconds;
-  document.getElementById('win-hints').textContent = hintCount;
+
+  // 計算星星：0 提示 = 3 星, 1~3 提示 = 2 星, >3 提示 = 1 星
+  let stars = 3;
+  if (hintCount > 0 && hintCount <= 3) stars = 2;
+  if (hintCount > 3) stars = 1;
+
+  // 更新任務標題
+  const titleEl = document.getElementById('win-mission-title');
+  if (QUIZ_DATA[qID]) {
+      titleEl.textContent = `${qID} ${QUIZ_DATA[qID].title} (${tID}) 完整的程式片段`;
+  }
+
+  // 顯示成績與星星
+  document.getElementById('win-score-box').innerHTML = `
+    挑戰用時：${seconds} 秒<br>
+    語法錯誤：0 次<br>
+    提示使用：${hintCount} 次
+    <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center;">
+        <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 5px;">
+            ${Array(3).fill(0).map((_, i) => `<span style="font-size: 2.5rem; filter: ${i < stars ? 'drop-shadow(0 0 12px rgba(251,191,36,0.8))' : 'grayscale(100%) opacity(20%)'}; transform: scale(${i < stars ? 1.1 : 1}); transition: all 0.3s ease; line-height: 1;">⭐</span>`).join('')}
+        </div>
+    </div>
+  `;
+
   setTimeout(() => {
     document.getElementById('win-overlay').classList.add('show');
   }, 800);
@@ -340,43 +360,7 @@ function win() {
   if (typeof getCurrentUser === 'function') {
       const user = getCurrentUser();
       if (user && typeof window.saveScore === 'function') {
-          
-          let stars = 3;
-          if (typeof totalHintsUsed !== 'undefined') {
-              if (totalHintsUsed > 0 && totalHintsUsed <= 3) stars = 2;
-              if (totalHintsUsed > 3) stars = 1;
-          }
-          let finalScoreSpan = document.getElementById('final-score');
-          if (finalScoreSpan) {
-              finalScoreSpan.style.width = "calc(100% + 40px)";
-              finalScoreSpan.style.marginLeft = "-20px";
-              finalScoreSpan.style.padding = "20px 10px 25px 10px";
-              finalScoreSpan.style.boxSizing = "border-box";
-              const hintsCount = typeof totalHintsUsed !== 'undefined' ? totalHintsUsed : 0;
-              let originHtml = finalScoreSpan.innerHTML;
-              
-              // 移除舊版的星星 UI
-              originHtml = originHtml.replace(/<div class="star-display-container"([\s\S]*?)<\/div>\s*<\/div>/g, '');
-              originHtml = originHtml.replace(/<br>⭐ 提示.*顆/g, '');
-              
-              // 修正折行問題，將各個統計項目包裝在 nowrap 中
-              originHtml = originHtml.replace(/(⏱ 用時.*?秒)/g, '<span style="white-space:nowrap;">$1</span>');
-              originHtml = originHtml.replace(/(❌ 錯誤.*?次)/g, '<span style="white-space:nowrap;">$1</span>');
-              originHtml = originHtml.replace(/(🎯 正確率.*?%)/g, '<span style="white-space:nowrap;">$1</span>');
-              originHtml = originHtml.replace(/　　/g, ' &nbsp;&nbsp; ');
-
-              finalScoreSpan.innerHTML = originHtml + `
-                  <div class="star-display-container" style="margin-top: 20px; width: 100%; display: flex; flex-direction: column; align-items: center;">
-                      <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 5px; flex-wrap: nowrap;">
-                          ${Array(3).fill(0).map((_, i) => `<span style="font-size: 2.5rem; filter: ${i < stars ? 'drop-shadow(0 0 12px rgba(251,191,36,0.8))' : 'grayscale(100%) opacity(20%)'}; transform: scale(${i < stars ? 1.1 : 1}); transition: all 0.3s ease; line-height: 1;">⭐</span>`).join('')}
-                      </div>
-                      <div style="font-size: 0.85rem; color: #94a3b8; text-align: center; margin-top: 10px;">
-                          ( 使用提示：${hintsCount} 次 )
-                      </div>
-                  </div>
-              `;
-          }
-          window.saveScore(user.className, user.name, qID + '_' + tID, "全程式撰寫", seconds, "PASS", stars)
+          window.saveScore(user.className, user.name, qID + '_' + tID, "獨立全程式撰寫", seconds, "PASS", stars)
             .then(res => console.log("成績上傳完成:", res));
       }
   }
