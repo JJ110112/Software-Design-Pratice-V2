@@ -739,6 +739,15 @@ function renderPrompt(text) {
     box.appendChild(span);
     if (ch === '\n') box.appendChild(document.createElement('br'));
   }
+
+  // 自動 focus 並捲動到輸入區
+  setTimeout(() => {
+    typingInput.focus();
+    promptBox.classList.add('focused');
+    if (window.innerWidth <= 768) {
+      promptBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 100);
 }
 
 // ═══════════════════════════════════════════
