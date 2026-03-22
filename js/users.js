@@ -68,7 +68,7 @@ function logoutUser() {
 // 全域登入防護
 (function enforceLogin() {
     const path = window.location.pathname;
-    const isIndex = path.endsWith('index.html') || path === '/' || path.endsWith('/Software%20Design%20Pratice/');
+    const isIndex = path.endsWith('index.html') || path === '/' || path.endsWith('/Software%20Design%20Pratice/') || path.endsWith('/Software-Design-Pratice-V1.01/');
     if (!getCurrentUser() && !isIndex) {
         window.location.href = '../index.html';
     }
