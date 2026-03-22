@@ -745,7 +745,19 @@ function renderPrompt(text) {
     typingInput.focus();
     promptBox.classList.add('focused');
     if (window.innerWidth <= 768) {
-      promptBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 等鍵盤完全彈出後再捲動（用 visualViewport resize 偵測）
+      const scrollToPrompt = () => promptBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (window.visualViewport) {
+        const onResize = () => {
+          window.visualViewport.removeEventListener('resize', onResize);
+          setTimeout(scrollToPrompt, 150);
+        };
+        window.visualViewport.addEventListener('resize', onResize);
+        // 備用：若鍵盤沒彈出（外接鍵盤），500ms 後也捲動
+        setTimeout(scrollToPrompt, 500);
+      } else {
+        setTimeout(scrollToPrompt, 500);
+      }
     }
   }, 100);
 }
@@ -828,9 +840,9 @@ function scrollToCursor() {
   const box = document.getElementById('prompt-box');
   if (!cur || !box) return;
 
-  // 手機：確保輸入區在可視範圍內（鍵盤彈出時）
+  // 手機：確保輸入區在可視範圍內（鍵盤彈出時，對齊頂部）
   if (window.innerWidth <= 768) {
-    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   if (currentMode !== 'full') return;
