@@ -34,36 +34,112 @@ const CLASS_ROSTER = {
     ]
 };
 
+// ── 登入儲存策略 ──
+// 預設用 sessionStorage（關瀏覽器自動登出）
+// 勾選「保持登入」時用 localStorage（永久）
+const SESSION_KEY = 'sw_quiz_user';
+const PERSIST_KEY = 'sw_quiz_persist'; // 'true' = 永久登入
+const IDLE_TIMEOUT = 30 * 60 * 1000;  // 30 分鐘閒置登出
+let idleTimer = null;
+
+function _getStorage() {
+    return localStorage.getItem(PERSIST_KEY) === 'true' ? localStorage : sessionStorage;
+}
+
 // 工具函式：取得當前登入的使用者
 function getCurrentUser() {
-    const user = localStorage.getItem('sw_quiz_user');
-    return user ? JSON.parse(user) : null;
+    // 先查 sessionStorage，再查 localStorage（永久登入）
+    let raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+
+    const user = JSON.parse(raw);
+
+    // 檢查閒置時間（永久登入不檢查）
+    if (localStorage.getItem(PERSIST_KEY) !== 'true' && user.lastActive) {
+        const idle = Date.now() - new Date(user.lastActive).getTime();
+        if (idle > IDLE_TIMEOUT) {
+            logoutUser();
+            return null;
+        }
+    }
+    return user;
 }
 
 // 工具函式：設定登入
-function loginUser(className, studentNo, studentName) {
-    const userStr = JSON.stringify({
+function loginUser(className, studentNo, studentName, persist = false) {
+    const userData = {
         className: className,
         no: studentNo,
         name: studentName,
-        loginTime: new Date().toISOString()
-    });
-    localStorage.setItem('sw_quiz_user', userStr);
+        loginTime: new Date().toISOString(),
+        lastActive: new Date().toISOString()
+    };
+    const userStr = JSON.stringify(userData);
+
+    if (persist) {
+        localStorage.setItem(PERSIST_KEY, 'true');
+        localStorage.setItem(SESSION_KEY, userStr);
+    } else {
+        localStorage.removeItem(PERSIST_KEY);
+        localStorage.removeItem(SESSION_KEY);
+        sessionStorage.setItem(SESSION_KEY, userStr);
+    }
+
     // 登入時觸發雲端同步
     if (typeof window.syncOnLogin === 'function') {
         window.syncOnLogin(studentName);
     }
+
+    // 啟動閒置計時
+    resetIdleTimer();
 }
 
 // 工具函式：登出
 function logoutUser() {
     const user = getCurrentUser();
-    // 登出時清除快取
     if (user && typeof window.syncOnLogout === 'function') {
         window.syncOnLogout(user.name);
     }
-    localStorage.removeItem('sw_quiz_user');
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(PERSIST_KEY);
+    clearTimeout(idleTimer);
 }
+
+// ── 閒置自動登出 ──
+function resetIdleTimer() {
+    if (localStorage.getItem(PERSIST_KEY) === 'true') return; // 永久登入不計時
+
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        const user = getCurrentUser();
+        if (user) {
+            logoutUser();
+            alert('已閒置超過 30 分鐘，系統已自動登出。');
+            window.location.href = window.location.pathname.includes('/pages/') ? '../index.html' : 'index.html';
+        }
+    }, IDLE_TIMEOUT);
+
+    // 更新 lastActive
+    const storage = _getStorage();
+    const raw = storage.getItem(SESSION_KEY);
+    if (raw) {
+        const user = JSON.parse(raw);
+        user.lastActive = new Date().toISOString();
+        storage.setItem(SESSION_KEY, JSON.stringify(user));
+    }
+}
+
+// 監聽使用者活動，重置閒置計時
+['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(evt => {
+    document.addEventListener(evt, () => {
+        if (getCurrentUser()) resetIdleTimer();
+    }, { passive: true });
+});
+
+// 頁面載入時啟動閒置計時
+if (getCurrentUser()) resetIdleTimer();
 
 // 全域登入防護
 (function enforceLogin() {

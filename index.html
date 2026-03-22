@@ -317,6 +317,12 @@ h1 {
                 <option value="">請先選擇班級</option>
             </select>
         </div>
+        <div class="form-group" style="margin-top:5px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--muted);">
+                <input type="checkbox" id="chk-persist" style="width:16px;height:16px;cursor:pointer;">
+                保持登入（個人裝置適用，共用電腦請勿勾選）
+            </label>
+        </div>
         <div class="form-actions">
             <button id="btn-cancel-login" class="btn-cancel">取消</button>
             <button id="btn-do-login" class="btn-primary" disabled>確認登入</button>
@@ -457,7 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const studentVal = document.getElementById('sel-student').value;
         if (cls && studentVal) {
             const [no, name] = studentVal.split('|');
-            loginUser(cls, parseInt(no), name);
+            const persist = document.getElementById('chk-persist').checked;
+            loginUser(cls, parseInt(no), name, persist);
             initAuthUI();
             loginModal.style.display = 'none';
             const btnDoLogin = document.getElementById('btn-do-login');
