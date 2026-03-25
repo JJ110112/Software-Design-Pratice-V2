@@ -227,7 +227,7 @@ const SOLUTION_LINES = generateSteps(qID, tID).map(s => ({
 }));
 
 // Update Titles
-window.addEventListener('load', () => {
+function updateTitles() {
     if (QUIZ_DATA[qID]) {
         let labelText = `${qID} ${QUIZ_DATA[qID].title} (${tID})`;
         if (qID === 'SETUP') {
@@ -244,7 +244,12 @@ window.addEventListener('load', () => {
         if(document.getElementById('topic-badge')) document.getElementById('topic-badge').textContent = `${qID} · ${QUIZ_DATA[qID].title}`;
         document.getElementById('ln-bar').innerHTML = SOLUTION_LINES.map((_, i) => `<span>${i+1}</span>`).join('');
     }
-});
+}
+if (document.readyState === 'complete') {
+    updateTitles();
+} else {
+    window.addEventListener('load', updateTitles);
+}
 
 // ══════════════════════════════════════════
 //  AUDIO ENGINE

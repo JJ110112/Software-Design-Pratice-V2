@@ -398,6 +398,8 @@ body::before {
     <div class="top-bar-right">
         <span class="user-info" id="user-info"></span>
         <button id="btn-logout" class="btn-icon" style="display:none;">登出</button>
+        <button id="toolbar-sound" class="btn-icon" title="音效開關">🔊</button>
+        <button id="toolbar-reload" class="btn-icon" title="重新載入">🔄</button>
     </div>
 </div>
 
@@ -634,8 +636,8 @@ if (GAME_MODE) {
     });
 }
 
-// If no mode selected, select the first one
-if (!GAME_MODE && initialTab === 'map') {
+// If no mode selected, default to first mode
+if (!GAME_MODE) {
     GAME_MODE = ALL_MODES[0];
     modeSelectorEl.querySelector('.mode-chip').click(); // Auto-trigger first chip
 }
@@ -923,10 +925,16 @@ window.addEventListener('resize', () => {
 });
 
 // ── Init ──
-window.addEventListener('load', () => {
-    initAuthUI();
+async function initPage() {
+    await initAuthUI();
     if (GAME_MODE) loadProgress();
-});
+    document.body.dataset.ready = '1';
+}
+if (document.readyState === 'complete') {
+    initPage();
+} else {
+    window.addEventListener('load', initPage);
+}
 </script>
 
 <!-- Scroll to Top Button -->
@@ -946,5 +954,25 @@ window.addEventListener('load', () => {
 </script>
 
 <script src="../js/quotes.js"></script>
+<script>
+// Sound toggle
+(function() {
+    const soundBtn = document.getElementById('toolbar-sound');
+    let soundOn = localStorage.getItem('gameSoundEnabled') !== 'false';
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    window.gameSoundEnabled = soundOn;
+    soundBtn.addEventListener('click', () => {
+        soundOn = !soundOn;
+        soundBtn.textContent = soundOn ? '🔊' : '🔇';
+        window.gameSoundEnabled = soundOn;
+        localStorage.setItem('gameSoundEnabled', soundOn);
+        if (!soundOn && window.speechSynthesis) window.speechSynthesis.cancel();
+    });
+    // Reload
+    document.getElementById('toolbar-reload').addEventListener('click', () => {
+        window.location.reload();
+    });
+})();
+</script>
 </body>
 </html>

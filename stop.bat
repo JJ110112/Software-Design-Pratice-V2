@@ -1,32 +1,20 @@
 @echo off
-chcp 65001 >nul
-title Software Design Practice - 停止服務
+title Software Design Practice - Stop Services
 
-echo ════════════════════════════════════════
-echo   停止所有服務
-echo ════════════════════════════════════════
+echo ========================================
+echo   Stopping All Services
+echo ========================================
 echo.
 
-set found=0
+echo Stopping API Server...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3333[^0-9]" ^| findstr "LISTENING"') do taskkill /PID %%a /T /F >nul 2>&1
 
-netstat -ano | findstr ":3333 " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
-    echo [x] 關閉 API Server (port 3333)...
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3333 " ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
-    set found=1
-) else (
-    echo [_] API Server 未在執行
-)
+echo Stopping Web Server...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5500[^0-9]" ^| findstr "LISTENING"') do taskkill /PID %%a /T /F >nul 2>&1
 
-netstat -ano | findstr ":5500 " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
-    echo [x] 關閉 Web Server (port 5500)...
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5500 " ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
-    set found=1
-) else (
-    echo [_] Web Server 未在執行
-)
+timeout /t 2 /nobreak >nul
 
 echo.
-echo 全部服務已停止。
-timeout /t 2 >nul
+echo All services stopped.
+echo.
+pause

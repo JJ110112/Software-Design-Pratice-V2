@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 // ══════════════════════════════════════════
 
 const PAGES = [
-  { name: '首頁', url: '/' },
+  { name: '首頁', url: '/index.html' },
   { name: '排行榜', url: '/leaderboard.html' },
   { name: 'Dashboard', url: '/dashboard.html' },
   { name: '連連看', url: '/pages/連連看.html?q=SETUP&t=T01' },
@@ -192,7 +192,8 @@ test.describe('闖關地圖', () => {
 
   test('dev 模式下所有階段都解鎖', async ({ page }) => {
     await page.goto('/pages/map.html?tab=map&dev=1&mode=連連看');
-    await page.waitForTimeout(1000);
+    // 等待 initAuthUI 完成（會設 data-ready="1"）
+    await page.waitForSelector('body[data-ready="1"]', { timeout: 10000 });
 
     // 所有練習模式卡片都不應該被灰階
     const grids = page.locator('.mode-grid');

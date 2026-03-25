@@ -1,25 +1,19 @@
 @echo off
-chcp 65001 >nul
-title Software Design Practice - 服務狀態
+title Software Design Practice - Status
 
-echo ════════════════════════════════════════
-echo   服務狀態
-echo ════════════════════════════════════════
+echo ========================================
+echo   Service Status
+echo ========================================
 echo.
 
-netstat -ano | findstr ":3333 " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
-    echo   API Server (port 3333):  執行中
-) else (
-    echo   API Server (port 3333):  未執行
-)
+set API_STATUS=STOPPED
+set WEB_STATUS=STOPPED
 
-netstat -ano | findstr ":5500 " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
-    echo   Web Server (port 5500):  執行中
-) else (
-    echo   Web Server (port 5500):  未執行
-)
+for /f %%a in ('netstat -ano ^| findstr ":3333[^0-9]" ^| findstr "LISTENING"') do set API_STATUS=RUNNING
+for /f %%a in ('netstat -ano ^| findstr ":5500[^0-9]" ^| findstr "LISTENING"') do set WEB_STATUS=RUNNING
+
+echo   API Server (port 3333):  %API_STATUS%
+echo   Web Server (port 5500):  %WEB_STATUS%
 
 echo.
 pause

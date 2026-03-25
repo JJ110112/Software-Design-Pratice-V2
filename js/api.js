@@ -3,10 +3,10 @@ const API_BASE = window.API_BASE || `${window.location.protocol}//${window.locat
 
 let apiReady = false;
 
-// 啟動時檢查 API 是否可用
-(async () => {
+// 啟動時檢查 API 是否可用，其他函式可 await 此 Promise
+const apiReadyPromise = (async () => {
     try {
-        const r = await fetch(`${API_BASE}/api/health`);
+        const r = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
         if (r.ok) { apiReady = true; console.log("📦 JSON API 連線成功"); }
     } catch (e) {
         console.warn("⚠️ JSON API 無法連線，系統將以本機 LocalStorage 模擬儲存過關紀錄。");
@@ -269,6 +269,8 @@ window.getScoresForUser = async function (userName) {
         }
         return results;
     }
+
+    await apiReadyPromise;
 
     if (!apiReady) {
         let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');

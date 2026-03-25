@@ -555,7 +555,7 @@ function showWin() {
                   </div>
               `;
           }
-          window.saveScore(user.className, user.name, qID + '_' + tID, "圖卡翻牌記憶", seconds, "PASS", stars)
+          window.saveScore(user.className, user.name, qID + '_' + tID, "記憶翻牌遊戲", seconds, "PASS", stars)
             .then(res => console.log("翻牌成績上傳完成:", res));
       }
   }

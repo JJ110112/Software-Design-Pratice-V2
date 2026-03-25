@@ -492,6 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { q: 'Q5', t: 'T01' }, { q: 'Q5', t: 'T02' }, { q: 'Q5', t: 'T03' },
             { q: '1060306', t: 'T01' }, { q: '1060307', t: 'T01' }, { q: '1060308', t: 'T01' }
         ];
+        const MODE_TO_FILE = { '英中單字配對': '連連看', '圖卡翻牌記憶': '記憶翻牌遊戲', '全程式撰寫': '獨立全程式撰寫' };
         let mode = '連連看';
         let nextQ = 'SETUP';
         let nextT = 'T01';
@@ -523,6 +524,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch(e) { console.error(e); }
+        // 正規化模式名稱為檔名
+        mode = MODE_TO_FILE[mode] || mode;
         // 打字子模式需要轉換為正確的檔名 + sub 參數
         const TYPING_SUB = { '打字-關鍵字': 'keyword', '打字-單行': 'line', '打字-完整': 'full' };
         if (TYPING_SUB[mode]) {

@@ -884,7 +884,7 @@ function showWin() {
                   </div>
               `;
           }
-          window.saveScore(user.className, user.name, qID + '_' + tID, "英中單字配對", seconds, "PASS", stars)
+          window.saveScore(user.className, user.name, qID + '_' + tID, "連連看", seconds, "PASS", stars)
             .then(res => console.log("連連看成績上傳完成:", res));
       }
   }

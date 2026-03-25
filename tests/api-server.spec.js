@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { mockLogin } = require('./helpers');
+const { mockLogin, waitForApi } = require('./helpers');
 
 const API = 'http://127.0.0.1:3333';
 
@@ -150,8 +150,8 @@ test.describe('前端整合 - saveScore & getScoresForUser', () => {
     });
 
     test('saveScore 寫入成功並可查詢', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForTimeout(500); // 等 api.js 初始化
+        await page.goto('/index.html');
+        await waitForApi(page);
 
         // 儲存成績
         const result = await page.evaluate(async () => {
@@ -173,8 +173,8 @@ test.describe('前端整合 - saveScore & getScoresForUser', () => {
     });
 
     test('getLeaderboard 取得排行榜', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForTimeout(500);
+        await page.goto('/index.html');
+        await waitForApi(page);
 
         // 先存幾筆成績
         await page.evaluate(async () => {
@@ -193,8 +193,8 @@ test.describe('前端整合 - saveScore & getScoresForUser', () => {
     });
 
     test('getOverallRanking 綜合排行榜', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForTimeout(500);
+        await page.goto('/index.html');
+        await waitForApi(page);
 
         // 清除快取
         await page.evaluate(() => {
@@ -226,8 +226,8 @@ test.describe('前端整合 - saveScore & getScoresForUser', () => {
     });
 
     test('getAllScoresForDashboard 儀表板資料', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForTimeout(500);
+        await page.goto('/index.html');
+        await waitForApi(page);
 
         // 清除快取
         await page.evaluate(() => {
@@ -243,8 +243,8 @@ test.describe('前端整合 - saveScore & getScoresForUser', () => {
     });
 
     test('getUserStarStats 星數統計', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForTimeout(500);
+        await page.goto('/index.html');
+        await waitForApi(page);
 
         await page.evaluate(async () => {
             await window.saveScore('統計班', '星數測試生', 'Q1', '連連看', 10, 'PASS', 3);
@@ -276,8 +276,8 @@ test.describe('離線容錯', () => {
     });
 
     test('API 斷線時成績存入 local_scores', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForTimeout(500);
+        await page.goto('/index.html');
+        await waitForApi(page);
 
         // 模擬 API 不可用
         await page.evaluate(() => {

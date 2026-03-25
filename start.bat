@@ -11,44 +11,26 @@ netsh advfirewall firewall show rule name="SDP-WebServer-5500" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Firewall port 5500 not open, adding rule...
     netsh advfirewall firewall add rule name="SDP-WebServer-5500" dir=in action=allow protocol=TCP localport=5500 >nul 2>&1
-    if %errorlevel%==0 (
-        echo     Port 5500 opened
-    ) else (
-        echo     [!] Failed. Please run as Administrator
-    )
-) else (
-    echo [OK] Firewall port 5500 ready
 )
 
 netsh advfirewall firewall show rule name="SDP-APIServer-3333" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Firewall port 3333 not open, adding rule...
     netsh advfirewall firewall add rule name="SDP-APIServer-3333" dir=in action=allow protocol=TCP localport=3333 >nul 2>&1
-    if %errorlevel%==0 (
-        echo     Port 3333 opened
-    ) else (
-        echo     [!] Failed. Please run as Administrator
-    )
-) else (
-    echo [OK] Firewall port 3333 ready
 )
 
 echo.
 
-:: -- Check if ports are in use --
-netstat -ano | findstr ":3333 " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
+:: -- Kill existing services --
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3333[^0-9]" ^| findstr "LISTENING"') do (
     echo [!] API Server port 3333 already running, stopping...
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3333 " ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
-    timeout /t 1 /nobreak >nul
+    taskkill /PID %%a /T /F >nul 2>&1
 )
-
-netstat -ano | findstr ":5500 " | findstr "LISTENING" >nul 2>&1
-if %errorlevel%==0 (
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5500[^0-9]" ^| findstr "LISTENING"') do (
     echo [!] Web Server port 5500 already running, stopping...
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5500 " ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
-    timeout /t 1 /nobreak >nul
+    taskkill /PID %%a /T /F >nul 2>&1
 )
+timeout /t 1 /nobreak >nul
 
 :: -- Start services --
 echo [1/2] Starting API Server (port 3333)...

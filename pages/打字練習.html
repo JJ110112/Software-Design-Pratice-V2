@@ -439,7 +439,7 @@ const LEVEL_SEQUENCE = [
 const SUB_GAME_NAMES = { keyword: '打字-關鍵字', line: '打字-單行', full: '打字-完整' };
 
 // 設定 UI
-window.addEventListener('load', () => {
+function updateTitles() {
     if (QUIZ_DATA[qID]) {
         let labelText = `${qID} ${QUIZ_DATA[qID].title} (${tID})`;
         if (qID === 'SETUP') {
@@ -451,7 +451,12 @@ window.addEventListener('load', () => {
         document.getElementById('mode-pill-header').textContent = labelText;
         if(document.querySelector('.badge-gold')) document.querySelector('.badge-gold').textContent = `${qID} · ${QUIZ_DATA[qID].title}`;
     }
-});
+}
+if (document.readyState === 'complete') {
+    updateTitles();
+} else {
+    window.addEventListener('load', updateTitles);
+}
 
 // BACK
 document.getElementById('btn-head-back').addEventListener('click', (e) => {
@@ -612,7 +617,11 @@ document.querySelectorAll('.mode-card').forEach(card => {
 
 // 如果 URL 帶有 sub 參數，自動進入該模式
 if (subMode && ['keyword', 'line', 'full'].includes(subMode)) {
-  window.addEventListener('load', () => startMode(subMode));
+  if (document.readyState === 'complete') {
+    startMode(subMode);
+  } else {
+    window.addEventListener('load', () => startMode(subMode));
+  }
 }
 
 function startMode(mode) {
