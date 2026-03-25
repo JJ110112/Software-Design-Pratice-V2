@@ -1,5 +1,5 @@
 // ── JSON API 設定 ──
-const API_BASE = window.API_BASE || 'http://localhost:3333';
+const API_BASE = window.API_BASE || `${window.location.protocol}//${window.location.hostname}:3333`;
 
 let apiReady = false;
 
