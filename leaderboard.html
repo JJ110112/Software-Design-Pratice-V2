@@ -55,11 +55,21 @@
         .score-label { font-size: 0.8rem; color: var(--muted); display: block; font-weight: 400; }
         
         .empty-state { text-align: center; padding: 50px; color: var(--muted); background: var(--surface); border-radius: 12px; border: 1px dashed var(--border); }
+
+        .top-nav { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .top-nav a { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); text-decoration: none; font-size: 0.9rem; transition: 0.2s; }
+        .top-nav a:hover { border-color: var(--accent); background: var(--surface2); transform: translateY(-2px); }
+        .top-nav .nav-icon { font-size: 1.1rem; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <nav class="top-nav">
+        <a href="index.html"><span class="nav-icon">🏠</span> 首頁</a>
+        <a href="pages/map.html"><span class="nav-icon">🗺️</span> 關卡地圖</a>
+    </nav>
+
     <header>
         <h1>🏆 綜合英雄風雲榜</h1>
         <div class="subtitle">累積通關次數與星星，證明你的全能實力！</div>
@@ -83,12 +93,9 @@
         <div class="empty-state">資料讀取中，請稍候...</div>
     </div>
 
-    <div style="text-align: center; margin-top: 20px;">
-        <a href="index.html" class="btn-home">⬅ 返回首頁</a>
-    </div>
 </div>
 
-<script type="module" src="js/api.js?v=9"></script>
+<script type="module" src="js/api.js?v=10"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const btnSearch = document.getElementById('btn-search');

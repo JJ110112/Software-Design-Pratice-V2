@@ -34,7 +34,7 @@ function nextId() {
 const server = http.createServer((req, res) => {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -102,7 +102,10 @@ const server = http.createServer((req, res) => {
         if (status) results = results.filter(r => r.status === status);
         if (qID) results = results.filter(r => r.qID === qID);
         if (gameMode) results = results.filter(r => r.gameMode === gameMode);
-        if (excludeClass) results = results.filter(r => r.className !== excludeClass);
+        if (excludeClass) {
+            const excluded = excludeClass.split(',').map(s => s.trim());
+            results = results.filter(r => !excluded.includes(r.className));
+        }
 
         // 排序
         const sortBy = url.searchParams.get('sortBy');
@@ -133,6 +136,16 @@ const server = http.createServer((req, res) => {
     // GET /api/health — 健康檢查
     if (req.method === 'GET' && pathname === '/api/health') {
         json(res, 200, { status: 'ok', scores: readScores().length });
+        return;
+    }
+
+    // POST|DELETE /api/scores/test-data — 刪除測試資料（保留 __TEST__ 教師）
+    if ((req.method === 'POST' || req.method === 'DELETE') && pathname === '/api/scores/test-data') {
+        const scores = readScores();
+        const kept = scores.filter(r => r.className === '__TEST__');
+        const removed = scores.length - kept.length;
+        writeScores(kept);
+        json(res, 200, { success: true, removed, remaining: kept.length });
         return;
     }
 

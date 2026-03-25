@@ -200,7 +200,8 @@ window.getLeaderboard = async function (qID, gameMode) {
     try {
         const params = new URLSearchParams({
             qID, gameMode, status: 'PASS',
-            sortBy: 'timeSpent', sortOrder: 'asc', limit: '10'
+            sortBy: 'timeSpent', sortOrder: 'asc', limit: '10',
+            excludeClass: '測試用,__TEST__'
         });
         const r = await fetch(`${API_BASE}/api/scores?${params}`);
         return await r.json();
@@ -213,22 +214,24 @@ window.getLeaderboard = async function (qID, gameMode) {
 /**
  * 教師儀表板專用 API
  */
-window.getAllScoresForDashboard = async function () {
+window.getAllScoresForDashboard = async function (forceRefresh = false) {
     if (!apiReady) {
         return JSON.parse(localStorage.getItem('local_scores') || '[]');
     }
 
     const sysCacheKey = 'fb_cache_dashboard_teacher';
     const DASH_TTL = 14400000; // 4 小時
-    try {
-        const raw = localStorage.getItem(sysCacheKey);
-        if (raw) { const obj = JSON.parse(raw); if (Date.now() - obj.time < DASH_TTL) return obj.data; }
-    } catch(e) {}
+    if (!forceRefresh) {
+        try {
+            const raw = localStorage.getItem(sysCacheKey);
+            if (raw) { const obj = JSON.parse(raw); if (Date.now() - obj.time < DASH_TTL) return obj.data; }
+        } catch(e) {}
+    }
 
     try {
         const params = new URLSearchParams({
             sortBy: 'timestamp', sortOrder: 'desc',
-            limit: '500', excludeClass: '測試用'
+            limit: '500', excludeClass: '測試用,__TEST__'
         });
         const r = await fetch(`${API_BASE}/api/scores?${params}`);
         const results = await r.json();
@@ -318,13 +321,14 @@ window.getOverallRanking = async function (classFilter = "ALL") {
                 }
             } catch(e) {}
             if (results.length === 0) {
-                const r = await fetch(`${API_BASE}/api/scores?status=PASS`);
+                const rkParams = new URLSearchParams({ status: 'PASS', excludeClass: '測試用,__TEST__' });
+                const r = await fetch(`${API_BASE}/api/scores?${rkParams}`);
                 results = await r.json();
                 try { localStorage.setItem(sysCacheKey, JSON.stringify({ time: Date.now(), data: results })); } catch(e) {}
             }
         }
 
-        let filtered = results.filter(r => r.status === "PASS" && r.className !== '測試用');
+        let filtered = results.filter(r => r.status === "PASS" && r.className !== '測試用' && r.className !== '__TEST__');
         if (classFilter !== "ALL") {
             filtered = filtered.filter(r => r.className === classFilter);
         }

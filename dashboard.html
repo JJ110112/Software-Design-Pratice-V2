@@ -62,6 +62,7 @@
                 <option value="電子二">電子二</option>
             </select>
             <button id="btn-refresh">↻ 刷新資料</button>
+            <button id="btn-delete-test" class="btn-danger">🗑 刪除所有測試資料</button>
             <a href="index.html" style="margin-left:10px; color: var(--muted); text-decoration: none;">返回首頁</a>
         </div>
     </header>
@@ -115,7 +116,7 @@
     </div>
 </div>
 
-<script type="module" src="js/api.js?v=9"></script>
+<script type="module" src="js/api.js?v=10"></script>
 <script>
 let rawData = [];
 let chart1, chart2;
@@ -125,15 +126,48 @@ const PAGE_SIZE = 20;
 document.addEventListener('DOMContentLoaded', () => {
     // 當按下刷新按鈕
     document.getElementById('btn-refresh').addEventListener('click', fetchData);
-    
+
     // 當切換下拉選單，不用重新 fetch，只需 refresh UI
     document.getElementById('filter-class').addEventListener('change', renderDashboard);
+
+    // 刪除所有測試資料（保留測試教師）
+    document.getElementById('btn-delete-test').addEventListener('click', deleteTestData);
 
     // 延遲 1 秒等模組內的 Firebase 載入完畢，安全呼叫
     setTimeout(fetchData, 800);
 });
 
-async function fetchData() {
+async function deleteTestData() {
+    if (!confirm('確定要刪除所有測試資料嗎？\n（測試教師 __TEST__ 的資料會保留）')) return;
+    const btn = document.getElementById('btn-delete-test');
+    btn.textContent = '刪除中...';
+    btn.disabled = true;
+    try {
+        const apiBase = window.API_BASE || `${location.protocol}//${location.hostname}:3333`;
+        const r = await fetch(`${apiBase}/api/scores/test-data`, { method: 'POST' });
+        const result = await r.json();
+        if (result.success) {
+            // 清除所有 fb_cache_*、local_scores、last_sync_* 快取
+            Object.keys(localStorage).forEach(k => {
+                if (k.startsWith('fb_cache_') || k.startsWith('last_sync_') || k === 'local_scores') {
+                    localStorage.removeItem(k);
+                }
+            });
+            alert(`已刪除 ${result.removed} 筆測試資料，保留 ${result.remaining} 筆教師資料`);
+            await fetchData();
+        } else {
+            alert('刪除失敗');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('刪除失敗：' + e.message);
+    } finally {
+        btn.textContent = '🗑 刪除所有測試資料';
+        btn.disabled = false;
+    }
+}
+
+async function fetchData(forceRefresh = true) {
     const btn = document.getElementById('btn-refresh');
     btn.textContent = "載入中...";
     btn.disabled = true;
@@ -145,8 +179,8 @@ async function fetchData() {
             return;
         }
 
-        // 撈取原始資料
-        rawData = await window.getAllScoresForDashboard();
+        // 撈取原始資料（儀表板永遠強制刷新，不吃快取）
+        rawData = await window.getAllScoresForDashboard(forceRefresh);
         renderDashboard();
     } catch(e) {
         console.error(e);
