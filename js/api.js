@@ -1,35 +1,21 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, query, where, orderBy, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+// ── JSON API 設定 ──
+const API_BASE = window.API_BASE || 'http://localhost:3333';
 
-// TODO: 請將以下 firebaseConfig 替換為您的 Firebase 專案金鑰
-const firebaseConfig = {
-    apiKey: "AIzaSyBrhpROyzAwz5FldPXGwFVyuJKFwIrNlqo",
-    authDomain: "software-design-pratice.firebaseapp.com",
-    projectId: "software-design-pratice",
-    storageBucket: "software-design-pratice.firebasestorage.app",
-    messagingSenderId: "911451146505",
-    appId: "1:911451146505:web:a68442e94003714d016bd8",
-    measurementId: "G-5MRVDNK2PQ"
-};
+let apiReady = false;
 
-let app, db;
-
-// 檢查是否已填入有效金鑰
-if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
+// 啟動時檢查 API 是否可用
+(async () => {
     try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        console.log("🔥 Firebase Firestore 連線成功");
+        const r = await fetch(`${API_BASE}/api/health`);
+        if (r.ok) { apiReady = true; console.log("📦 JSON API 連線成功"); }
     } catch (e) {
-        console.error("Firebase 初始化失敗:", e);
+        console.warn("⚠️ JSON API 無法連線，系統將以本機 LocalStorage 模擬儲存過關紀錄。");
     }
-} else {
-    console.warn("⚠️ 尚未設定 Firebase 金鑰，系統將以本機 LocalStorage 模擬儲存過關紀錄。");
-}
+})();
 
 // ── 快取工具函式 (改用 localStorage，F5 不會清掉) ──
-// TTL 預設 30 分鐘 (1800000ms)
-const CACHE_TTL = 7200000; // 2 小時
+// TTL 預設 2 小時
+const CACHE_TTL = 7200000;
 
 function cacheGet(key) {
     try {
@@ -58,14 +44,13 @@ function cacheAppend(key, newRecord) {
     try {
         const raw = localStorage.getItem(key);
         if (!raw) {
-            // 快取不存在或已過期，建立新快取
             cacheSet(key, [newRecord]);
             return;
         }
         const obj = JSON.parse(raw);
         if (!Array.isArray(obj.data)) obj.data = [];
         obj.data.push(newRecord);
-        obj.time = Date.now(); // 更新快取時間，避免過期
+        obj.time = Date.now();
         localStorage.setItem(key, JSON.stringify(obj));
     } catch (e) {}
 }
@@ -76,7 +61,7 @@ function cacheAppend(key, newRecord) {
  * 登入時：嘗試上傳離線成績（不清除快取）
  */
 window.syncOnLogin = async function (userName) {
-    if (!db || !userName) return;
+    if (!apiReady || !userName) return;
     await window.syncOfflineScores(userName);
 };
 
@@ -91,35 +76,26 @@ window.syncOnLogout = function (userName) {
 
 /**
  * 回到 map 頁面時：節流背景同步（每 10 分鐘最多一次）
- * 快取有效時直接用快取，不額外查 Firestore
+ * 快取有效時直接用快取，不額外查 API
  */
 const SYNC_COOLDOWN = 600000; // 10 分鐘
 window.syncOnMapLoad = async function (userName) {
-    if (!db || !userName) return;
-    // 先嘗試上傳離線成績
+    if (!apiReady || !userName) return;
     await window.syncOfflineScores(userName);
-    // 節流：10 分鐘內不重複查 Firestore
     const lastSyncKey = `last_sync_${userName}`;
     const lastSync = parseInt(localStorage.getItem(lastSyncKey) || '0');
     if (Date.now() - lastSync < SYNC_COOLDOWN) return;
     localStorage.setItem(lastSyncKey, String(Date.now()));
-    // 背景從 Firestore 撈取最新，與快取合併
     try {
-        const q = query(collection(db, "scores"), where("userName", "==", userName));
-        const snapshot = await getDocs(q);
-        const fbResults = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            data.id = doc.id;
-            data.gameMode = normalizeMode(data.gameMode);
-            fbResults.push(data);
-        });
+        const r = await fetch(`${API_BASE}/api/scores?userName=${encodeURIComponent(userName)}`);
+        const apiResults = await r.json();
+        apiResults.forEach(r => { r.gameMode = normalizeMode(r.gameMode); });
         const cacheKey = `fb_cache_${userName}`;
         const cached = cacheGet(cacheKey) || [];
         const cachedIds = new Set(cached.filter(r => r.id).map(r => r.id));
         const cachedKeys = new Set(cached.map(r => `${r.qID}_${r.gameMode}_${r.timestamp}`));
         let added = 0;
-        fbResults.forEach(r => {
+        apiResults.forEach(r => {
             if (r.id && !cachedIds.has(r.id)) {
                 const key = `${r.qID}_${r.gameMode}_${r.timestamp}`;
                 if (!cachedKeys.has(key)) { cached.push(r); added++; }
@@ -132,27 +108,36 @@ window.syncOnMapLoad = async function (userName) {
 };
 
 /**
- * 離線成績重試：把 local_scores 中未上傳的補傳到 Firestore
+ * 離線成績重試：把 local_scores 中未上傳的補傳到 API
  */
 window.syncOfflineScores = async function (userName) {
-    if (!db) return;
+    if (!apiReady) return;
     let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
     if (localScores.length === 0) return;
     const toUpload = userName ? localScores.filter(s => s.userName === userName) : localScores;
     const remaining = userName ? localScores.filter(s => s.userName !== userName) : [];
-    let uploaded = 0;
-    for (const record of toUpload) {
-        try { await addDoc(collection(db, "scores"), record); uploaded++; }
-        catch (e) { remaining.push(record); }
+    try {
+        const r = await fetch(`${API_BASE}/api/scores/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(toUpload)
+        });
+        if (r.ok) {
+            const result = await r.json();
+            console.log(`✅ 離線成績補傳: ${result.count} 筆`);
+        } else {
+            remaining.push(...toUpload);
+        }
+    } catch (e) {
+        remaining.push(...toUpload);
     }
     localStorage.setItem('local_scores', JSON.stringify(remaining));
-    if (uploaded > 0) console.log(`✅ 離線成績補傳: ${uploaded} 筆`);
 };
 
 /**
- * 儲存使用者的過關成績到 Firestore
- * 策略：先寫入本地快取（樂觀更新），再嘗試寫 Firestore
- *        如果 Firestore 失敗，同時存入 local_scores 備份
+ * 儲存使用者的過關成績到 JSON API
+ * 策略：先寫入本地快取（樂觀更新），再嘗試寫 API
+ *        如果 API 失敗，同時存入 local_scores 備份
  */
 window.saveScore = async function (className, userName, qID, gameMode, timeSpent, status = "PASS", stars = 3) {
     const newRecord = {
@@ -170,9 +155,9 @@ window.saveScore = async function (className, userName, qID, gameMode, timeSpent
     const cacheKey = `fb_cache_${newRecord.userName}`;
     cacheAppend(cacheKey, newRecord);
 
-    // 2. 嘗試寫入 Firestore
-    if (!db) {
-        console.warn("⚠️ saveScore: db 未初始化，成績僅存本地", newRecord.qID, newRecord.gameMode);
+    // 2. 嘗試寫入 API
+    if (!apiReady) {
+        console.warn("⚠️ saveScore: API 未連線，成績僅存本地", newRecord.qID, newRecord.gameMode);
         let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
         localScores.push(newRecord);
         localStorage.setItem('local_scores', JSON.stringify(localScores));
@@ -180,13 +165,20 @@ window.saveScore = async function (className, userName, qID, gameMode, timeSpent
     }
 
     try {
-        const docRef = await addDoc(collection(db, "scores"), newRecord);
-        newRecord.id = docRef.id;
-        console.log("✅ Firestore 寫入成功:", newRecord.qID, newRecord.gameMode, "stars:", newRecord.stars);
-        return { success: true, id: docRef.id };
+        const r = await fetch(`${API_BASE}/api/scores`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newRecord)
+        });
+        const result = await r.json();
+        if (r.ok) {
+            newRecord.id = result.id;
+            console.log("✅ API 寫入成功:", newRecord.qID, newRecord.gameMode, "stars:", newRecord.stars);
+            return { success: true, id: result.id };
+        }
+        throw new Error(result.error || 'API error');
     } catch (e) {
-        console.error("❌ Firestore 寫入失敗:", e.code, e.message);
-        // Firestore 失敗，存到 local_scores 備份，下次登入時重試
+        console.error("❌ API 寫入失敗:", e.message);
         let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
         localScores.push(newRecord);
         localStorage.setItem('local_scores', JSON.stringify(localScores));
@@ -195,10 +187,10 @@ window.saveScore = async function (className, userName, qID, gameMode, timeSpent
 };
 
 /**
- * 從 Firestore 取得各關卡排行榜
+ * 從 API 取得各關卡排行榜
  */
 window.getLeaderboard = async function (qID, gameMode) {
-    if (!db) {
+    if (!apiReady) {
         return [
             { className: "資訊二", userName: "王小明", timeSpent: 35, timestamp: new Date().toISOString() },
             { className: "電子二", userName: "林小華", timeSpent: 42, timestamp: new Date().toISOString() }
@@ -206,18 +198,12 @@ window.getLeaderboard = async function (qID, gameMode) {
     }
 
     try {
-        const q = query(
-            collection(db, "scores"),
-            where("qID", "==", qID),
-            where("gameMode", "==", gameMode),
-            where("status", "==", "PASS"),
-            orderBy("timeSpent", "asc"),
-            limit(10)
-        );
-        const snapshot = await getDocs(q);
-        const results = [];
-        snapshot.forEach(doc => results.push(doc.data()));
-        return results;
+        const params = new URLSearchParams({
+            qID, gameMode, status: 'PASS',
+            sortBy: 'timeSpent', sortOrder: 'asc', limit: '10'
+        });
+        const r = await fetch(`${API_BASE}/api/scores?${params}`);
+        return await r.json();
     } catch (e) {
         console.error("載入排行榜失敗:", e);
         return [];
@@ -226,10 +212,9 @@ window.getLeaderboard = async function (qID, gameMode) {
 
 /**
  * 教師儀表板專用 API
- * ✅ 改動：limit 500 → 50，改用 localStorage 快取
  */
 window.getAllScoresForDashboard = async function () {
-    if (!db) {
+    if (!apiReady) {
         return JSON.parse(localStorage.getItem('local_scores') || '[]');
     }
 
@@ -241,23 +226,14 @@ window.getAllScoresForDashboard = async function () {
     } catch(e) {}
 
     try {
-        // 撈最近 500 筆供統計（快取 4 小時）
-        const q = query(
-            collection(db, "scores"),
-            orderBy("timestamp", "desc"),
-            limit(500)
-        );
-        const snapshot = await getDocs(q);
-        const results = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            data.id = doc.id;
-            results.push(data);
+        const params = new URLSearchParams({
+            sortBy: 'timestamp', sortOrder: 'desc',
+            limit: '500', excludeClass: '測試用'
         });
-
-        const filtered = results.filter(r => r.className !== '測試用');
-        cacheSet(sysCacheKey, filtered);
-        return filtered;
+        const r = await fetch(`${API_BASE}/api/scores?${params}`);
+        const results = await r.json();
+        cacheSet(sysCacheKey, results);
+        return results;
     } catch (e) {
         console.error("載入儀表板資料失敗:", e);
         return [];
@@ -278,10 +254,8 @@ function normalizeMode(mode) {
 
 /**
  * 取得特定使用者的所有紀錄
- * ✅ 改動：改用 localStorage 快取，TTL 30 分鐘
  */
 window.getScoresForUser = async function (userName) {
-    // 合併 local_scores 中尚未上傳的紀錄
     function mergeLocalScores(results, userName) {
         const localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
         const pending = localScores.filter(s => s.userName === userName);
@@ -296,7 +270,7 @@ window.getScoresForUser = async function (userName) {
         return results;
     }
 
-    if (!db) {
+    if (!apiReady) {
         let localScores = JSON.parse(localStorage.getItem('local_scores') || '[]');
         return localScores.filter(s => s.userName === userName).map(s => {
             s.gameMode = normalizeMode(s.gameMode);
@@ -309,24 +283,13 @@ window.getScoresForUser = async function (userName) {
     if (cached) return mergeLocalScores(cached, userName);
 
     try {
-        const q = query(
-            collection(db, "scores"),
-            where("userName", "==", userName)
-        );
-        const snapshot = await getDocs(q);
-        const results = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            data.id = doc.id;
-            data.gameMode = normalizeMode(data.gameMode);
-            results.push(data);
-        });
-
+        const r = await fetch(`${API_BASE}/api/scores?userName=${encodeURIComponent(userName)}`);
+        const results = await r.json();
+        results.forEach(r => { r.gameMode = normalizeMode(r.gameMode); });
         cacheSet(cacheKey, results);
         return mergeLocalScores(results, userName);
     } catch (e) {
         console.error("載入個人紀錄失敗:", e);
-        // 即使 Firestore 失敗，也返回快取 + local_scores
         const fallback = cacheGet(cacheKey) || [];
         return mergeLocalScores(fallback, userName);
     }
@@ -334,15 +297,13 @@ window.getScoresForUser = async function (userName) {
 
 /**
  * 取得綜合排行榜
- * ✅ 改動：改用 localStorage 快取，TTL 30 分鐘
  */
 window.getOverallRanking = async function (classFilter = "ALL") {
     try {
         let results = [];
-        if (!db) {
+        if (!apiReady) {
             results = JSON.parse(localStorage.getItem('local_scores') || '[]');
         } else {
-            // 排行榜專用快取：4 小時 TTL，無 limit（需要全量資料計算排名）
             const sysCacheKey = 'fb_cache_overall_ranking';
             const RANKING_TTL = 14400000; // 4 小時
             try {
@@ -355,16 +316,8 @@ window.getOverallRanking = async function (classFilter = "ALL") {
                 }
             } catch(e) {}
             if (results.length === 0) {
-                const q = query(
-                    collection(db, "scores"),
-                    where("status", "==", "PASS")
-                );
-                const snapshot = await getDocs(q);
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    data.id = doc.id;
-                    results.push(data);
-                });
+                const r = await fetch(`${API_BASE}/api/scores?status=PASS`);
+                results = await r.json();
                 try { localStorage.setItem(sysCacheKey, JSON.stringify({ time: Date.now(), data: results })); } catch(e) {}
             }
         }
@@ -463,7 +416,6 @@ window.getUserStarStats = async function (userName) {
     for (let m in modeStars) {
         if (modeStars[m] > 57) modeStars[m] = 57;
     }
-    // 重新計算總星星（以 capped modeStars 為準）
     currentStars = Object.values(modeStars).reduce((a, b) => a + b, 0);
     for (let s = 1; s <= 5; s++) stageStars[s] = 0;
     for (let k in levelStars) {
@@ -471,7 +423,6 @@ window.getUserStarStats = async function (userName) {
         const stage = MODE_TO_STAGE[entry.mode] || 1;
         stageStars[stage] += entry.stars;
     }
-    // 每階段也設上限
     const STAGE_MAX = { 1: 171, 2: 171, 3: 171, 4: 228, 5: 171 };
     for (let s = 1; s <= 5; s++) {
         if (stageStars[s] > STAGE_MAX[s]) stageStars[s] = STAGE_MAX[s];

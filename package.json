@@ -7,9 +7,12 @@
     "test": "npx playwright test",
     "test:smoke": "npx playwright test all-pages-smoke",
     "test:exam": "npx playwright test mock-exam",
+    "test:api": "npx playwright test api-server",
     "test:headed": "npx playwright test --headed",
     "test:ui": "npx playwright test --ui",
-    "serve": "npx serve -l 5500"
+    "serve": "npx serve -l 5500",
+    "api": "node server/server.js",
+    "dev": "node server/server.js & npx serve -l 5500"
   },
   "repository": {
     "type": "git",

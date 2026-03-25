@@ -14,9 +14,16 @@ module.exports = defineConfig({
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
   ],
-  webServer: {
-    command: 'npx serve -l 5500',
-    port: 5500,
-    reuseExistingServer: true,
-  },
+  webServer: [
+    {
+      command: 'node server/server.js',
+      port: 3333,
+      reuseExistingServer: true,
+    },
+    {
+      command: 'npx serve -l 5500',
+      port: 5500,
+      reuseExistingServer: true,
+    },
+  ],
 });

@@ -3,3 +3,4 @@ test-results/
 playwright-report/
 .claude/
 document/系統文件.md
+server/data/
